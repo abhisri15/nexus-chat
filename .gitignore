@@ -1,0 +1,28 @@
+# Build
+build/
+bin/
+out/
+*.class
+
+# Gradle
+.gradle/
+gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Internal dev docs (not for repo)
+BOILERPLATE_GUIDE.md
