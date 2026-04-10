@@ -11,6 +11,9 @@
     let currentRoom = null;
     const userColors = {};
     let colorIndex = 0;
+    let manualDisconnect = false;
+    let reconnectDelay = 1000;
+    let reconnectTimer = null;
 
     // ─── DOM Elements ───
     const $ = id => document.getElementById(id);
@@ -45,12 +48,17 @@
 
     // ─── WebSocket ───
 
-    function connect() {
+    function connect(isReconnect) {
         const host = window.location.hostname || 'localhost';
         ws = new WebSocket(`ws://${host}:9091`);
 
         ws.onopen = () => {
             console.log('WebSocket connected');
+            reconnectDelay = 1000;
+            if (isReconnect && username) {
+                send({ type: 'auth', username });
+                toast('Reconnected!', 'success');
+            }
         };
 
         ws.onmessage = (event) => {
@@ -64,17 +72,24 @@
 
         ws.onclose = () => {
             console.log('WebSocket disconnected');
+            if (manualDisconnect) return;
             if (username) {
-                toast('Disconnected from server', 'error');
-                setTimeout(() => {
-                    resetToLogin();
-                }, 2000);
+                scheduleReconnect();
             }
         };
 
-        ws.onerror = () => {
-            toast('Connection error', 'error');
-        };
+        ws.onerror = () => {};
+    }
+
+    function scheduleReconnect() {
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        const delaySec = Math.round(reconnectDelay / 1000);
+        toast(`Reconnecting in ${delaySec}s...`, 'info');
+        reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            connect(true);
+        }, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, 30000);
     }
 
     function send(obj) {
@@ -108,6 +123,12 @@
             case 'chat':
                 onChat(data);
                 break;
+            case 'history':
+                onHistory(data);
+                break;
+            case 'typing':
+                onTyping(data);
+                break;
             case 'system':
                 addSystemMessage(data.content || '');
                 break;
@@ -120,6 +141,7 @@
     // ─── Auth ───
 
     function onAuthOk(data) {
+        const wasReconnect = username === data.username;
         username = data.username;
         loginScreen.classList.remove('active');
         chatScreen.classList.add('active');
@@ -131,7 +153,12 @@
 
         loginBtn.disabled = false;
         loginBtn.querySelector('span').textContent = 'Enter Chat';
-        toast(`Welcome, ${username}!`, 'success');
+
+        if (wasReconnect && currentRoom) {
+            send({ type: 'join', room: currentRoom });
+        } else {
+            toast(`Welcome, ${username}!`, 'success');
+        }
     }
 
     function onAuthFail(data) {
@@ -201,6 +228,61 @@
 
     function onChat(data) {
         addChatMessage(data.sender, data.content, data.timestamp);
+        clearTypingFor(data.sender);
+    }
+
+    function onHistory(data) {
+        const messages = data.messages || [];
+        if (messages.length === 0) return;
+        addSystemMessage(`Showing last ${messages.length} messages`);
+        messages.forEach(m => addChatMessage(m.sender, m.content, m.timestamp));
+    }
+
+    // ─── Typing Indicators ───
+    const typingUsers = {};
+    let typingDebounce = 0;
+
+    function onTyping(data) {
+        const name = data.username;
+        if (!name || name === username) return;
+        typingUsers[name] = Date.now();
+        renderTyping();
+        setTimeout(() => {
+            if (Date.now() - typingUsers[name] >= 2900) {
+                delete typingUsers[name];
+                renderTyping();
+            }
+        }, 3000);
+    }
+
+    function clearTypingFor(name) {
+        if (typingUsers[name]) {
+            delete typingUsers[name];
+            renderTyping();
+        }
+    }
+
+    function renderTyping() {
+        const indicator = $('typing-indicator');
+        if (!indicator) return;
+        const names = Object.keys(typingUsers);
+        if (names.length === 0) {
+            indicator.classList.add('hidden');
+            return;
+        }
+        let text;
+        if (names.length === 1) text = `${names[0]} is typing...`;
+        else if (names.length === 2) text = `${names[0]} and ${names[1]} are typing...`;
+        else text = `${names[0]} and ${names.length - 1} others are typing...`;
+        indicator.querySelector('span').textContent = text;
+        indicator.classList.remove('hidden');
+    }
+
+    function emitTyping() {
+        const now = Date.now();
+        if (now - typingDebounce < 2000) return;
+        typingDebounce = now;
+        send({ type: 'typing' });
     }
 
     function addChatMessage(sender, content, timestamp) {
@@ -252,9 +334,9 @@
         hideLoginError();
         loginBtn.disabled = true;
         loginBtn.querySelector('span').textContent = 'Connecting...';
-        connect();
+        manualDisconnect = false;
+        connect(false);
 
-        // Wait for connection then authenticate
         const checkInterval = setInterval(() => {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 clearInterval(checkInterval);
@@ -262,7 +344,6 @@
             }
         }, 100);
 
-        // Timeout after 5 seconds
         setTimeout(() => {
             clearInterval(checkInterval);
             if (!username) {
@@ -278,6 +359,7 @@
     messageInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') doSend();
     });
+    messageInput.addEventListener('input', emitTyping);
 
     function doSend() {
         const content = messageInput.value.trim();
@@ -319,6 +401,8 @@
 
     // Logout
     logoutBtn.addEventListener('click', () => {
+        manualDisconnect = true;
+        if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
         if (ws) ws.close();
         resetToLogin();
     });

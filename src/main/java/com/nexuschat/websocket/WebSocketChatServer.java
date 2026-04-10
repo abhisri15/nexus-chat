@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -63,6 +64,7 @@ public class WebSocketChatServer extends WebSocketServer {
                 case "join" -> handleJoin(client, raw);
                 case "leave" -> handleLeave(client);
                 case "chat" -> handleChat(client, raw);
+                case "typing" -> handleTyping(client);
                 case "rooms" -> handleRooms(client);
                 case "users" -> handleUsers(client);
                 default -> sendJson(client, "error", "content", "Unknown message type");
@@ -141,6 +143,7 @@ public class WebSocketChatServer extends WebSocketServer {
         room.join(client);
 
         sendJson(client, "joined", "room", roomName);
+        sendHistory(client, room);
         broadcastRoomUsers(room);
         broadcastRoomList();
     }
@@ -177,6 +180,32 @@ public class WebSocketChatServer extends WebSocketServer {
         if (room != null) {
             broadcastRoomUsers(room);
         }
+    }
+
+    private void handleTyping(WebSocketChatClient client) {
+        if (client.getUsername() == null) return;
+        Room room = client.getCurrentRoom();
+        if (room == null) return;
+        String json = "{\"type\":\"typing\",\"username\":\"" + escapeJson(client.getUsername()) + "\"}";
+        for (ChatClient member : room.getMembers()) {
+            if (member != client) member.sendMessage(json);
+        }
+    }
+
+    private void sendHistory(WebSocketChatClient client, Room room) {
+        List<Message> recent = room.getHistory().getRecent();
+        if (recent.isEmpty()) return;
+        StringBuilder sb = new StringBuilder("{\"type\":\"history\",\"messages\":[");
+        boolean first = true;
+        for (Message m : recent) {
+            if (!first) sb.append(",");
+            sb.append("{\"sender\":\"").append(escapeJson(m.getSender()))
+              .append("\",\"content\":\"").append(escapeJson(m.getContent()))
+              .append("\",\"timestamp\":\"").append(m.getTimestamp()).append("\"}");
+            first = false;
+        }
+        sb.append("]}");
+        client.sendMessage(sb.toString());
     }
 
     // ─── Broadcast Helpers ───

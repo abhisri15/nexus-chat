@@ -15,6 +15,11 @@ both share the same rooms and can chat with each other in real time.
 - **Web UI** — modern dark-themed interface with login, room sidebar, live user list, and toast notifications
 - **CLI client** — lightweight terminal client for power users
 - **Cross-transport messaging** — browser and terminal users share the same rooms seamlessly
+- **Message history** — last 50 messages per room stored in a thread-safe circular buffer; displayed on join
+- **Typing indicators** — real-time "user is typing..." with debounced emission and animated dots
+- **Auto-reconnect** — exponential backoff (1s → 30s cap) with automatic re-auth and room rejoin
+- **Live metrics** — `GET /stats` JSON endpoint with uptime, rooms, users, per-room message counts
+- **CI pipeline** — GitHub Actions builds and tests on every push
 - **Bounded message queues** — per-room `wait()/notifyAll()` blocking with configurable capacity
 - **Backpressure handling** — slow clients managed via Strategy pattern (drop / disconnect / retry)
 - **Observer pattern** — decoupled event logging for room lifecycle and message flow
@@ -149,6 +154,23 @@ Any text not starting with `/` is sent as a chat message to your current room.
 Browser users and CLI users share the same `RoomManager` and `ClientRegistry`.
 A message sent from the web UI appears in the terminal client and vice versa.
 
+### Server Metrics
+
+Visit **http://localhost:8080/stats** for live JSON metrics:
+
+```json
+{
+  "uptime_seconds": 3412,
+  "rooms": 3,
+  "users_online": 7,
+  "total_messages": 142,
+  "room_details": [
+    {"name": "general", "members": 4, "messages": 89},
+    {"name": "dev", "members": 3, "messages": 53}
+  ]
+}
+```
+
 ---
 
 ## Project Structure
@@ -160,7 +182,7 @@ src/main/java/com/nexuschat/
 │   ├── ChatServer.java               # TCP accept loop, thread pool, lifecycle
 │   └── ServerConfig.java             # Immutable config (ports, pool size, timeouts)
 ├── http/
-│   └── HttpStaticServer.java         # JDK HttpServer — serves /static/ resources
+│   └── HttpStaticServer.java         # JDK HttpServer — serves /static/ + /stats endpoint
 ├── websocket/
 │   ├── WebSocketChatServer.java      # WS server — auth, join, chat, room/user lists
 │   └── WebSocketChatClient.java      # ChatClient over WebSocket (protocol → JSON)
@@ -171,8 +193,9 @@ src/main/java/com/nexuschat/
 │   ├── ClientRegistry.java           # ConcurrentHashMap username ↔ client lookup
 │   └── NexusChatClient.java          # Standalone CLI client
 ├── room/
-│   ├── Room.java                     # Shared resource — members + queue + broadcaster
-│   └── RoomManager.java              # ConcurrentHashMap room lifecycle
+│   ├── Room.java                     # Shared resource — members + queue + broadcaster + history
+│   ├── RoomManager.java              # ConcurrentHashMap room lifecycle
+│   └── MessageHistory.java           # Thread-safe circular buffer (last N messages)
 ├── message/
 │   ├── Message.java                  # Immutable message (UUID, sender, content, timestamp)
 │   ├── MessageType.java              # CHAT, JOIN, LEAVE, SYSTEM, BROADCAST
@@ -198,7 +221,10 @@ src/main/resources/
 └── static/
     ├── index.html                     # Login screen + chat layout + room modal
     ├── style.css                      # Dark theme, animations, responsive design
-    └── app.js                         # WebSocket client, DOM management, state machine
+    └── app.js                         # WebSocket client, reconnect, typing, state machine
+
+.github/workflows/
+└── ci.yml                             # GitHub Actions — build + test on push
 ```
 
 ---
@@ -216,6 +242,7 @@ src/main/resources/
 | **Copy-on-Write** | `Room.members` | `CopyOnWriteArrayList` — safe iteration during broadcast while other threads join/leave |
 | **Atomic Operations** | `Room.messageCount` | `AtomicInteger` — lock-free counter incremented from producer threads |
 | **Volatile Flags** | `ConnectedClient`, `MessageBroadcaster`, `ChatServer` | `volatile boolean` ensures visibility of shutdown/connected flags across threads |
+| **Circular Buffer** | `MessageHistory` | `synchronized` ring buffer — broadcaster writes, joiners read concurrently |
 | **Graceful Shutdown** | `NexusChatServer` | JVM shutdown hook → stop accepting → notify clients → drain queues → join broadcaster threads → close sockets |
 
 ---

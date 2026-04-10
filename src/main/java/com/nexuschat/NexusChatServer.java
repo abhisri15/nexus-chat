@@ -34,7 +34,8 @@ public class NexusChatServer {
                 WS_PORT, tcpServer.getRoomManager(),
                 tcpServer.getClientRegistry(), eventListener);
 
-        HttpStaticServer httpServer = new HttpStaticServer(HTTP_PORT);
+        HttpStaticServer httpServer = new HttpStaticServer(
+                HTTP_PORT, tcpServer.getRoomManager(), tcpServer.getClientRegistry());
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             tcpServer.stop();

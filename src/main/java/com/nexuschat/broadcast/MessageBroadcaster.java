@@ -3,6 +3,7 @@ package com.nexuschat.broadcast;
 import com.nexuschat.client.ChatClient;
 import com.nexuschat.message.ChatProtocol;
 import com.nexuschat.message.Message;
+import com.nexuschat.message.MessageType;
 import com.nexuschat.observer.RoomEventListener;
 import com.nexuschat.queue.BoundedMessageQueue;
 import com.nexuschat.room.Room;
@@ -54,6 +55,9 @@ public class MessageBroadcaster implements Runnable {
 
                 eventListener.onMessageBroadcast(message, room);
                 broadcastToMembers(message, room.getMembers());
+                if (message.getType() == MessageType.CHAT) {
+                    room.getHistory().add(message);
+                }
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

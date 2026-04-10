@@ -91,6 +91,13 @@ public class RoomManager {
     }
 
     /**
+     * Snapshot of all rooms. Used by /stats endpoint.
+     */
+    public Map<String, Room> getAllRooms() {
+        return Map.copyOf(rooms);
+    }
+
+    /**
      * Shutdown all rooms. Called during server shutdown.
      */
     public void shutdownAllRooms() {

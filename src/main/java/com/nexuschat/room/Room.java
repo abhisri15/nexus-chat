@@ -33,12 +33,15 @@ public class Room {
 
     private static final Logger logger = LoggerFactory.getLogger(Room.class);
 
+    private static final int HISTORY_CAPACITY = 50;
+
     private final String name;
     private final CopyOnWriteArrayList<ChatClient> members = new CopyOnWriteArrayList<>();
     private final BoundedMessageQueue messageQueue;
     private final MessageBroadcaster broadcaster;
     private final Thread broadcasterThread;
     private final RoomEventListener eventListener;
+    private final MessageHistory history;
     private final AtomicInteger messageCount = new AtomicInteger(0);
     private volatile boolean active = true;
 
@@ -46,6 +49,7 @@ public class Room {
         this.name = name;
         this.eventListener = eventListener;
         this.messageQueue = new RoomMessageQueue(queueCapacity);
+        this.history = new MessageHistory(HISTORY_CAPACITY);
 
         BackpressureHandler backpressureHandler = new DropMessageHandler();
         this.broadcaster = new MessageBroadcaster(messageQueue, this, backpressureHandler, eventListener);
@@ -136,5 +140,9 @@ public class Room {
 
     public String getQueueStatus() {
         return messageQueue.getQueueStatus();
+    }
+
+    public MessageHistory getHistory() {
+        return history;
     }
 }
