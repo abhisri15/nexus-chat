@@ -1,6 +1,6 @@
 package com.nexuschat.observer;
 
-import com.nexuschat.client.ConnectedClient;
+import com.nexuschat.client.ChatClient;
 import com.nexuschat.message.Message;
 import com.nexuschat.room.Room;
 
@@ -15,9 +15,9 @@ import com.nexuschat.room.Room;
  */
 public interface RoomEventListener {
 
-    void onClientJoined(ConnectedClient client, Room room);
+    void onClientJoined(ChatClient client, Room room);
 
-    void onClientLeft(ConnectedClient client, Room room);
+    void onClientLeft(ChatClient client, Room room);
 
     void onMessageBroadcast(Message message, Room room);
 

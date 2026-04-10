@@ -1,6 +1,6 @@
 package com.nexuschat.broadcast;
 
-import com.nexuschat.client.ConnectedClient;
+import com.nexuschat.client.ChatClient;
 import com.nexuschat.message.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,7 +16,7 @@ public class DropMessageHandler implements BackpressureHandler {
     private static final Logger logger = LoggerFactory.getLogger(DropMessageHandler.class);
 
     @Override
-    public SlowClientAction handleSlowClient(ConnectedClient client, Message message) {
+    public SlowClientAction handleSlowClient(ChatClient client, Message message) {
         logger.warn("[BACKPRESSURE] Dropped message {} for slow client '{}'", message.getMessageId(), client.getUsername());
         return SlowClientAction.DROP_MESSAGE;
     }

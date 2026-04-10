@@ -160,7 +160,7 @@ public class ClientHandler implements Runnable {
             return;
         }
         StringBuilder sb = new StringBuilder("Users in #" + room.getName() + ":\n");
-        for (ConnectedClient member : room.getMembers()) {
+        for (ChatClient member : room.getMembers()) {
             sb.append("  - ").append(member.getUsername()).append("\n");
         }
         sendSystemMessage(sb.toString().trim());

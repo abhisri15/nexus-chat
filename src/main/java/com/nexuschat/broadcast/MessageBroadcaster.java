@@ -1,6 +1,6 @@
 package com.nexuschat.broadcast;
 
-import com.nexuschat.client.ConnectedClient;
+import com.nexuschat.client.ChatClient;
 import com.nexuschat.message.ChatProtocol;
 import com.nexuschat.message.Message;
 import com.nexuschat.observer.RoomEventListener;
@@ -76,9 +76,9 @@ public class MessageBroadcaster implements Runnable {
      * then writes to each client. If a write fails, delegates to
      * BackpressureHandler.
      */
-    private void broadcastToMembers(Message message, List<ConnectedClient> members) {
+    private void broadcastToMembers(Message message, List<ChatClient> members) {
         String formatted = ChatProtocol.formatForDisplay(message);
-        for (ConnectedClient member : members) {
+        for (ChatClient member : members) {
             deliverToClient(member, formatted, message);
         }
     }
@@ -92,7 +92,7 @@ public class MessageBroadcaster implements Runnable {
      * which would deadlock. Instead, just disconnect the client; its
      * ClientHandler's finally block will call leave() on its own thread.
      */
-    private void deliverToClient(ConnectedClient client, String formatted, Message message) {
+    private void deliverToClient(ChatClient client, String formatted, Message message) {
         if (!client.isConnected()) return;
 
         try {

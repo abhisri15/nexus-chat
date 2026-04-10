@@ -1,6 +1,6 @@
 package com.nexuschat.broadcast;
 
-import com.nexuschat.client.ConnectedClient;
+import com.nexuschat.client.ChatClient;
 import com.nexuschat.message.Message;
 
 /**
@@ -20,5 +20,5 @@ public interface BackpressureHandler {
      * @param message the message that failed to deliver
      * @return the action to take
      */
-    SlowClientAction handleSlowClient(ConnectedClient client, Message message);
+    SlowClientAction handleSlowClient(ChatClient client, Message message);
 }

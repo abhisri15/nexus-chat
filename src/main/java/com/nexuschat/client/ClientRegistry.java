@@ -14,15 +14,15 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class ClientRegistry {
 
-    private final ConcurrentHashMap<String, ConnectedClient> clientsById = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, ConnectedClient> clientsByUsername = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ChatClient> clientsById = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ChatClient> clientsByUsername = new ConcurrentHashMap<>();
 
     /**
      * Register a client after username is set.
      * Returns false if username is already taken.
      */
-    public boolean register(ConnectedClient client) {
-        ConnectedClient existing = clientsByUsername.putIfAbsent(client.getUsername(), client);
+    public boolean register(ChatClient client) {
+        ChatClient existing = clientsByUsername.putIfAbsent(client.getUsername(), client);
         if (existing != null) return false;
 
         clientsById.put(client.getClientId(), client);
@@ -33,21 +33,21 @@ public class ClientRegistry {
      * Unregister a client (on disconnect or quit).
      */
     public void unregister(String clientId) {
-        ConnectedClient removed = clientsById.remove(clientId);
+        ChatClient removed = clientsById.remove(clientId);
         if (removed != null && removed.getUsername() != null) {
             clientsByUsername.remove(removed.getUsername());
         }
     }
 
-    public ConnectedClient getByUsername(String username) {
+    public ChatClient getByUsername(String username) {
         return clientsByUsername.get(username);
     }
 
-    public ConnectedClient getByClientId(String clientId) {
+    public ChatClient getByClientId(String clientId) {
         return clientsById.get(clientId);
     }
 
-    public Collection<ConnectedClient> getAllClients() {
+    public Collection<ChatClient> getAllClients() {
         return clientsById.values();
     }
 

@@ -21,7 +21,7 @@ import java.util.UUID;
  * - sendMessage() may be called from ANY thread (synchronized)
  * - disconnect() may be called from ANY thread (idempotent)
  */
-public class ConnectedClient {
+public class ConnectedClient implements ChatClient {
 
     private final String clientId;
     private final Socket socket;

@@ -1,6 +1,6 @@
 package com.nexuschat.observer;
 
-import com.nexuschat.client.ConnectedClient;
+import com.nexuschat.client.ChatClient;
 import com.nexuschat.message.Message;
 import com.nexuschat.room.Room;
 import org.slf4j.Logger;
@@ -16,12 +16,12 @@ public class ConsoleRoomLogger implements RoomEventListener {
     private static final Logger logger = LoggerFactory.getLogger(ConsoleRoomLogger.class);
 
     @Override
-    public void onClientJoined(ConnectedClient client, Room room) {
+    public void onClientJoined(ChatClient client, Room room) {
         logger.info("[JOIN] {} joined #{} (members: {})", client.getUsername(), room.getName(), room.getMemberCount());
     }
 
     @Override
-    public void onClientLeft(ConnectedClient client, Room room) {
+    public void onClientLeft(ChatClient client, Room room) {
         logger.info("[LEAVE] {} left #{} (members: {})", client.getUsername(), room.getName(), room.getMemberCount());
     }
 

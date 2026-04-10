@@ -3,7 +3,7 @@ package com.nexuschat.room;
 import com.nexuschat.broadcast.BackpressureHandler;
 import com.nexuschat.broadcast.DropMessageHandler;
 import com.nexuschat.broadcast.MessageBroadcaster;
-import com.nexuschat.client.ConnectedClient;
+import com.nexuschat.client.ChatClient;
 import com.nexuschat.message.Message;
 import com.nexuschat.message.MessageType;
 import com.nexuschat.observer.RoomEventListener;
@@ -34,7 +34,7 @@ public class Room {
     private static final Logger logger = LoggerFactory.getLogger(Room.class);
 
     private final String name;
-    private final CopyOnWriteArrayList<ConnectedClient> members = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<ChatClient> members = new CopyOnWriteArrayList<>();
     private final BoundedMessageQueue messageQueue;
     private final MessageBroadcaster broadcaster;
     private final Thread broadcasterThread;
@@ -78,7 +78,7 @@ public class Room {
      * Add a client to this room.
      * Called from ClientHandler thread — CopyOnWriteArrayList handles concurrency.
      */
-    public void join(ConnectedClient client) {
+    public void join(ChatClient client) {
         if (!active) return;
         members.add(client);
         client.setCurrentRoom(this);
@@ -93,7 +93,7 @@ public class Room {
      * Guard: only removes from members and clears room ref.
      * LEAVE announcement is best-effort — if queue is shut down, skip it.
      */
-    public void leave(ConnectedClient client) {
+    public void leave(ChatClient client) {
         if (!members.remove(client)) return;
         client.setCurrentRoom(null);
         eventListener.onClientLeft(client, this);
@@ -122,7 +122,7 @@ public class Room {
         return name;
     }
 
-    public List<ConnectedClient> getMembers() {
+    public List<ChatClient> getMembers() {
         return members;
     }
 

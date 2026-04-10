@@ -2,6 +2,7 @@ package com.nexuschat.server;
 
 import com.nexuschat.client.ClientHandler;
 import com.nexuschat.client.ClientRegistry;
+import com.nexuschat.client.ChatClient;
 import com.nexuschat.client.ConnectedClient;
 import com.nexuschat.observer.RoomEventListener;
 import com.nexuschat.room.RoomManager;
@@ -83,7 +84,7 @@ public class ChatServer {
         }
 
         // 2. Notify connected clients
-        for (ConnectedClient client : clientRegistry.getAllClients()) {
+        for (ChatClient client : clientRegistry.getAllClients()) {
             client.sendMessage("[SERVER] Server shutting down...");
         }
 
@@ -101,7 +102,7 @@ public class ChatServer {
         }
 
         // 5. Disconnect any remaining clients
-        for (ConnectedClient client : clientRegistry.getAllClients()) {
+        for (ChatClient client : clientRegistry.getAllClients()) {
             client.disconnect();
         }
 
