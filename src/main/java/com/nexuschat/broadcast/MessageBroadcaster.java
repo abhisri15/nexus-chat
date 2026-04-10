@@ -86,6 +86,11 @@ public class MessageBroadcaster implements Runnable {
     /**
      * Deliver a formatted message to a single client.
      * Handles write failures via BackpressureHandler.
+     *
+     * IMPORTANT: Never call room.leave() from the broadcaster thread —
+     * leave() enqueues a LEAVE message to the same queue we're consuming,
+     * which would deadlock. Instead, just disconnect the client; its
+     * ClientHandler's finally block will call leave() on its own thread.
      */
     private void deliverToClient(ConnectedClient client, String formatted, Message message) {
         if (!client.isConnected()) return;
@@ -95,10 +100,7 @@ public class MessageBroadcaster implements Runnable {
         } catch (Exception e) {
             SlowClientAction action = backpressureHandler.handleSlowClient(client, message);
             switch (action) {
-                case DISCONNECT_CLIENT -> {
-                    client.disconnect();
-                    room.leave(client);
-                }
+                case DISCONNECT_CLIENT -> client.disconnect();
                 case RETRY_ONCE -> {
                     try {
                         client.sendMessage(formatted);

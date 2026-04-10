@@ -29,6 +29,11 @@ application {
     mainClass = 'com.nexuschat.NexusChatServer'
 }
 
+// Server is long-running — fork a separate JVM so Gradle doesn't kill it
+tasks.named('run') {
+    standardInput = System.in
+}
+
 // Separate task to run the CLI client
 tasks.register('runClient', JavaExec) {
     mainClass = 'com.nexuschat.client.NexusChatClient'

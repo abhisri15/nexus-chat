@@ -61,9 +61,7 @@ public class ChatServer {
                 clientThreadPool.submit(handler);
             }
         } catch (IOException e) {
-            if (running) {
-                logger.error("Server error: {}", e.getMessage());
-            }
+            logger.error("Server error: {}", e.getMessage(), e);
         }
     }
 
@@ -76,12 +74,7 @@ public class ChatServer {
         running = false;
         logger.info("Shutting down NexusChat...");
 
-        for (ConnectedClient client : clientRegistry.getAllClients()) {
-            client.sendMessage("[SERVER] Server shutting down...");
-        }
-
-        roomManager.shutdownAllRooms();
-
+        // 1. Close server socket FIRST — stop accepting new connections immediately
         try {
             if (serverSocket != null && !serverSocket.isClosed()) {
                 serverSocket.close();
@@ -89,6 +82,15 @@ public class ChatServer {
         } catch (IOException ignored) {
         }
 
+        // 2. Notify connected clients
+        for (ConnectedClient client : clientRegistry.getAllClients()) {
+            client.sendMessage("[SERVER] Server shutting down...");
+        }
+
+        // 3. Shutdown rooms (stops broadcasters, drains queues)
+        roomManager.shutdownAllRooms();
+
+        // 4. Shutdown client handler thread pool
         if (clientThreadPool != null) {
             clientThreadPool.shutdownNow();
             try {
@@ -98,6 +100,7 @@ public class ChatServer {
             }
         }
 
+        // 5. Disconnect any remaining clients
         for (ConnectedClient client : clientRegistry.getAllClients()) {
             client.disconnect();
         }

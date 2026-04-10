@@ -40,6 +40,7 @@ public class Room {
     private final Thread broadcasterThread;
     private final RoomEventListener eventListener;
     private final AtomicInteger messageCount = new AtomicInteger(0);
+    private volatile boolean active = true;
 
     public Room(String name, int queueCapacity, RoomEventListener eventListener) {
         this.name = name;
@@ -63,6 +64,7 @@ public class Room {
      * Stop the broadcaster and drain the queue. Call when room is destroyed.
      */
     public void stopBroadcaster() {
+        active = false;
         broadcaster.stop();
         messageQueue.shutdown();
         try {
@@ -77,6 +79,7 @@ public class Room {
      * Called from ClientHandler thread — CopyOnWriteArrayList handles concurrency.
      */
     public void join(ConnectedClient client) {
+        if (!active) return;
         members.add(client);
         client.setCurrentRoom(this);
         eventListener.onClientJoined(client, this);
@@ -85,13 +88,18 @@ public class Room {
 
     /**
      * Remove a client from this room.
-     * Called from ClientHandler thread.
+     * Called from ClientHandler thread OR broadcaster thread (on slow client disconnect).
+     *
+     * Guard: only removes from members and clears room ref.
+     * LEAVE announcement is best-effort — if queue is shut down, skip it.
      */
     public void leave(ConnectedClient client) {
-        members.remove(client);
+        if (!members.remove(client)) return;
         client.setCurrentRoom(null);
         eventListener.onClientLeft(client, this);
-        submitMessage(new Message(client.getUsername(), "", name, MessageType.LEAVE));
+        if (active) {
+            submitMessage(new Message(client.getUsername(), "", name, MessageType.LEAVE));
+        }
     }
 
     /**
@@ -99,6 +107,7 @@ public class Room {
      * Called by ClientHandler (PRODUCER) — may BLOCK if queue is full.
      */
     public void submitMessage(Message message) {
+        if (!active) return;
         try {
             messageQueue.enqueue(message, (msg, size) -> messageCount.incrementAndGet());
         } catch (InterruptedException e) {

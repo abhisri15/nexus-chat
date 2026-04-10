@@ -8,6 +8,7 @@ import com.nexuschat.room.Room;
 import com.nexuschat.room.RoomManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 /**
  * PRODUCER role in the producer-consumer pattern.
@@ -28,6 +29,7 @@ public class ClientHandler implements Runnable {
     private final RoomManager roomManager;
     private final ClientRegistry clientRegistry;
     private final RoomEventListener eventListener;
+    private volatile boolean disconnected = false;
 
     public ClientHandler(ConnectedClient client, RoomManager roomManager,
                          ClientRegistry clientRegistry, RoomEventListener eventListener) {
@@ -40,6 +42,7 @@ public class ClientHandler implements Runnable {
     @Override
     public void run() {
         try {
+            MDC.put("clientId", client.getClientId());
             sendSystemMessage("Welcome to NexusChat! Enter your username:");
 
             // Username registration loop
@@ -59,6 +62,7 @@ public class ClientHandler implements Runnable {
                 sendSystemMessage("Username '" + username + "' is taken. Try another:");
             }
 
+            MDC.put("username", username);
             sendSystemMessage("Hello " + username + "! Commands: /join <room>, /leave, /rooms, /users, /quit");
 
             // Message loop
@@ -77,6 +81,7 @@ public class ClientHandler implements Runnable {
             eventListener.onError("ClientHandler", e);
         } finally {
             handleDisconnect();
+            MDC.clear();
         }
     }
 
@@ -113,6 +118,7 @@ public class ClientHandler implements Runnable {
         }
         Room room = roomManager.getOrCreateRoom(roomName);
         room.join(client);
+        MDC.put("room", roomName);
         sendSystemMessage("Joined #" + roomName);
     }
 
@@ -126,6 +132,7 @@ public class ClientHandler implements Runnable {
             return;
         }
         room.leave(client);
+        MDC.remove("room");
         sendSystemMessage("Left #" + room.getName());
     }
 
@@ -183,10 +190,16 @@ public class ClientHandler implements Runnable {
 
     /**
      * Clean up on disconnect (graceful or abrupt).
+     * Guarded by volatile flag — safe to call multiple times
+     * (e.g., /quit triggers disconnect, then finally block calls again).
      */
     private void handleDisconnect() {
-        if (client.getCurrentRoom() != null) {
-            client.getCurrentRoom().leave(client);
+        if (disconnected) return;
+        disconnected = true;
+
+        Room room = client.getCurrentRoom();
+        if (room != null) {
+            room.leave(client);
         }
         clientRegistry.unregister(client.getClientId());
         client.disconnect();

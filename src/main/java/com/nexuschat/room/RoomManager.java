@@ -36,13 +36,25 @@ public class RoomManager {
      * Get an existing room or create a new one.
      * Thread-safe via ConcurrentHashMap.computeIfAbsent.
      */
+    /**
+     * Get an existing room or create a new one.
+     *
+     * Side effects (startBroadcaster, onRoomCreated) are kept outside
+     * computeIfAbsent to avoid holding the CHM segment lock during
+     * thread creation and observer callbacks — prevents potential deadlock
+     * if an observer accesses the rooms map.
+     */
     public Room getOrCreateRoom(String name) {
-        return rooms.computeIfAbsent(name, roomName -> {
-            Room room = new Room(roomName, config.getRoomQueueCapacity(), eventListener);
+        boolean[] created = {false};
+        Room room = rooms.computeIfAbsent(name, roomName -> {
+            created[0] = true;
+            return new Room(roomName, config.getRoomQueueCapacity(), eventListener);
+        });
+        if (created[0]) {
             room.startBroadcaster();
             eventListener.onRoomCreated(room);
-            return room;
-        });
+        }
+        return room;
     }
 
     /**
