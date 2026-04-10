@@ -17,31 +17,31 @@ public class ConsoleRoomLogger implements RoomEventListener {
 
     @Override
     public void onClientJoined(ConnectedClient client, Room room) {
-        // TODO: Log "[JOIN] {username} joined #{roomName} (members: {count})"
+        logger.info("[JOIN] {} joined #{} (members: {})", client.getUsername(), room.getName(), room.getMemberCount());
     }
 
     @Override
     public void onClientLeft(ConnectedClient client, Room room) {
-        // TODO: Log "[LEAVE] {username} left #{roomName} (members: {count})"
+        logger.info("[LEAVE] {} left #{} (members: {})", client.getUsername(), room.getName(), room.getMemberCount());
     }
 
     @Override
     public void onMessageBroadcast(Message message, Room room) {
-        // TODO: Log "[MSG] #{roomName} {sender}: {content} | {queueStatus}"
+        logger.info("[MSG] #{} {}: {} | {}", room.getName(), message.getSender(), message.getContent(), room.getQueueStatus());
     }
 
     @Override
     public void onRoomCreated(Room room) {
-        // TODO: Log "[ROOM+] Created #{roomName}"
+        logger.info("[ROOM+] Created #{}", room.getName());
     }
 
     @Override
     public void onRoomDestroyed(Room room) {
-        // TODO: Log "[ROOM-] Destroyed #{roomName} (total messages: {count})"
+        logger.info("[ROOM-] Destroyed #{} (total messages: {})", room.getName(), room.getMessageCount());
     }
 
     @Override
     public void onError(String source, Exception e) {
-        // TODO: Log "[ERROR] {source}: {e.getMessage()}" at error level
+        logger.error("[ERROR] {}: {}", source, e.getMessage());
     }
 }

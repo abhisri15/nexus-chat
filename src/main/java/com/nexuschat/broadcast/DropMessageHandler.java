@@ -17,8 +17,7 @@ public class DropMessageHandler implements BackpressureHandler {
 
     @Override
     public SlowClientAction handleSlowClient(ConnectedClient client, Message message) {
-        // TODO: Log a warning with client username and message ID
-        //       Return DROP_MESSAGE
+        logger.warn("[BACKPRESSURE] Dropped message {} for slow client '{}'", message.getMessageId(), client.getUsername());
         return SlowClientAction.DROP_MESSAGE;
     }
 }

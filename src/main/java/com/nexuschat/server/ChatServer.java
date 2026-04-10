@@ -47,15 +47,24 @@ public class ChatServer {
      * Call from main thread; use shutdown hook to call stop().
      */
     public void start() {
-        // TODO: 1. Create thread pool from config.getThreadPoolSize()
-        // TODO: 2. Open ServerSocket on config.getPort()
-        // TODO: 3. Set running = true, log startup
-        // TODO: 4. Enter accept loop:
-        //          - serverSocket.accept() → socket
-        //          - Create ConnectedClient(socket)
-        //          - Create ClientHandler(client, roomManager, clientRegistry, eventListener)
-        //          - Submit handler to thread pool
-        // TODO: 5. Catch SocketException when stop() closes the socket (normal shutdown)
+        clientThreadPool = Executors.newFixedThreadPool(config.getThreadPoolSize());
+
+        try {
+            serverSocket = new ServerSocket(config.getPort());
+            running = true;
+            logger.info("NexusChat server started on port {}", config.getPort());
+
+            while (running) {
+                Socket socket = serverSocket.accept();
+                ConnectedClient client = new ConnectedClient(socket);
+                ClientHandler handler = new ClientHandler(client, roomManager, clientRegistry, eventListener);
+                clientThreadPool.submit(handler);
+            }
+        } catch (IOException e) {
+            if (running) {
+                logger.error("Server error: {}", e.getMessage());
+            }
+        }
     }
 
     /**
@@ -63,13 +72,37 @@ public class ChatServer {
      * Called from shutdown hook or programmatically.
      */
     public void stop() {
-        // TODO: 1. Set running = false
-        // TODO: 2. Broadcast shutdown message to all clients via clientRegistry
-        // TODO: 3. Call roomManager.shutdownAllRooms()
-        // TODO: 4. Close serverSocket (breaks accept loop)
-        // TODO: 5. Shutdown thread pool (shutdownNow + awaitTermination)
-        // TODO: 6. Disconnect all remaining clients
-        // TODO: 7. Log shutdown complete
+        if (!running) return;
+        running = false;
+        logger.info("Shutting down NexusChat...");
+
+        for (ConnectedClient client : clientRegistry.getAllClients()) {
+            client.sendMessage("[SERVER] Server shutting down...");
+        }
+
+        roomManager.shutdownAllRooms();
+
+        try {
+            if (serverSocket != null && !serverSocket.isClosed()) {
+                serverSocket.close();
+            }
+        } catch (IOException ignored) {
+        }
+
+        if (clientThreadPool != null) {
+            clientThreadPool.shutdownNow();
+            try {
+                clientThreadPool.awaitTermination(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        for (ConnectedClient client : clientRegistry.getAllClients()) {
+            client.disconnect();
+        }
+
+        logger.info("NexusChat shut down.");
     }
 
     public boolean isRunning() {

@@ -33,24 +33,33 @@ public class RoomMessageQueue implements BoundedMessageQueue {
 
     @Override
     public void enqueue(Message message, BiConsumer<Message, Integer> callback) throws InterruptedException {
-        // TODO: synchronized(monitor)
-        //       - while (queue full AND active) → monitor.wait()
-        //       - if (!active) return (shutdown was called)
-        //       - queue.addLast(message)
-        //       - callback.accept(message, queue.size())
-        //       - monitor.notifyAll() → wake consumer
+        synchronized (monitor) {
+            while (queue.size() >= capacity && active) {
+                monitor.wait();
+            }
+            if (!active) return;
+
+            queue.addLast(message);
+            int size = queue.size();
+            callback.accept(message, size);
+            monitor.notifyAll();
+        }
     }
 
     @Override
     public Message dequeue(BiConsumer<Message, Integer> callback) throws InterruptedException {
-        // TODO: synchronized(monitor)
-        //       - while (queue empty AND active) → monitor.wait()
-        //       - if (!active && queue.isEmpty()) return null (shutdown)
-        //       - message = queue.pollFirst()
-        //       - callback.accept(message, queue.size())
-        //       - monitor.notifyAll() → wake producer
-        //       - return message
-        return null;
+        synchronized (monitor) {
+            while (queue.isEmpty() && active) {
+                monitor.wait();
+            }
+            if (!active && queue.isEmpty()) return null;
+
+            Message message = queue.pollFirst();
+            int size = queue.size();
+            callback.accept(message, size);
+            monitor.notifyAll();
+            return message;
+        }
     }
 
     @Override
@@ -88,8 +97,9 @@ public class RoomMessageQueue implements BoundedMessageQueue {
 
     @Override
     public void shutdown() {
-        // TODO: Set active = false
-        //       synchronized(monitor) → monitor.notifyAll()
-        //       This wakes any blocked producer/consumer so they can exit
+        active = false;
+        synchronized (monitor) {
+            monitor.notifyAll();
+        }
     }
 }

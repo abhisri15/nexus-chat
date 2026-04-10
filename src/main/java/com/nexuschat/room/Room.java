@@ -5,6 +5,7 @@ import com.nexuschat.broadcast.DropMessageHandler;
 import com.nexuschat.broadcast.MessageBroadcaster;
 import com.nexuschat.client.ConnectedClient;
 import com.nexuschat.message.Message;
+import com.nexuschat.message.MessageType;
 import com.nexuschat.observer.RoomEventListener;
 import com.nexuschat.queue.BoundedMessageQueue;
 import com.nexuschat.queue.RoomMessageQueue;
@@ -54,14 +55,21 @@ public class Room {
      * Start the broadcaster consumer thread. Call once after room creation.
      */
     public void startBroadcaster() {
-        // TODO: Start the broadcaster thread (daemon thread)
+        broadcasterThread.setDaemon(true);
+        broadcasterThread.start();
     }
 
     /**
      * Stop the broadcaster and drain the queue. Call when room is destroyed.
      */
     public void stopBroadcaster() {
-        // TODO: Stop broadcaster, shutdown queue, join broadcaster thread
+        broadcaster.stop();
+        messageQueue.shutdown();
+        try {
+            broadcasterThread.join(5000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /**
@@ -69,10 +77,10 @@ public class Room {
      * Called from ClientHandler thread — CopyOnWriteArrayList handles concurrency.
      */
     public void join(ConnectedClient client) {
-        // TODO: Add to members list
-        //       Set client's current room to this
-        //       Notify observer: onClientJoined
-        //       Submit a JOIN message to the queue (so it's announced in order)
+        members.add(client);
+        client.setCurrentRoom(this);
+        eventListener.onClientJoined(client, this);
+        submitMessage(new Message(client.getUsername(), "", name, MessageType.JOIN));
     }
 
     /**
@@ -80,10 +88,10 @@ public class Room {
      * Called from ClientHandler thread.
      */
     public void leave(ConnectedClient client) {
-        // TODO: Remove from members list
-        //       Set client's current room to null
-        //       Notify observer: onClientLeft
-        //       Submit a LEAVE message to the queue
+        members.remove(client);
+        client.setCurrentRoom(null);
+        eventListener.onClientLeft(client, this);
+        submitMessage(new Message(client.getUsername(), "", name, MessageType.LEAVE));
     }
 
     /**
@@ -91,9 +99,12 @@ public class Room {
      * Called by ClientHandler (PRODUCER) — may BLOCK if queue is full.
      */
     public void submitMessage(Message message) {
-        // TODO: Call messageQueue.enqueue(message, callback)
-        //       Callback increments messageCount
-        //       Handle InterruptedException
+        try {
+            messageQueue.enqueue(message, (msg, size) -> messageCount.incrementAndGet());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.warn("Interrupted while submitting message to #{}", name);
+        }
     }
 
     // --- Getters ---

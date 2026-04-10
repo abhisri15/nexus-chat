@@ -39,29 +39,68 @@ public class ClientHandler implements Runnable {
 
     @Override
     public void run() {
-        // TODO: 1. Send welcome message, prompt for username
-        // TODO: 2. Read username, validate (not taken, not blank)
-        // TODO: 3. Register in ClientRegistry
-        // TODO: 4. Enter message loop:
-        //          - line = client.readLine()
-        //          - if null → client disconnected, break
-        //          - if command → handleCommand(line)
-        //          - else → handleChatMessage(line)
-        // TODO: 5. Finally block: handleDisconnect()
+        try {
+            sendSystemMessage("Welcome to NexusChat! Enter your username:");
+
+            // Username registration loop
+            String username;
+            while (true) {
+                username = client.readLine();
+                if (username == null) return;
+                username = username.trim();
+                if (username.isBlank()) {
+                    sendSystemMessage("Username cannot be blank. Try again:");
+                    continue;
+                }
+                client.setUsername(username);
+                if (clientRegistry.register(client)) break;
+
+                client.setUsername(null);
+                sendSystemMessage("Username '" + username + "' is taken. Try another:");
+            }
+
+            sendSystemMessage("Hello " + username + "! Commands: /join <room>, /leave, /rooms, /users, /quit");
+
+            // Message loop
+            String line;
+            while ((line = client.readLine()) != null) {
+                line = line.trim();
+                if (line.isEmpty()) continue;
+
+                if (ChatProtocol.isCommand(line)) {
+                    handleCommand(line);
+                } else {
+                    handleChatMessage(line);
+                }
+            }
+        } catch (Exception e) {
+            eventListener.onError("ClientHandler", e);
+        } finally {
+            handleDisconnect();
+        }
     }
 
     /**
      * Route a command string to the appropriate handler.
      */
     private void handleCommand(String input) {
-        // TODO: Parse command with ChatProtocol.parseCommand(input)
-        //       Switch on command name:
-        //         "join"  → handleJoin(args)
-        //         "leave" → handleLeave()
-        //         "rooms" → handleListRooms()
-        //         "users" → handleListUsers()
-        //         "quit"  → handleQuit()
-        //         default → sendSystemMessage("Unknown command")
+        String[] parts = ChatProtocol.parseCommand(input);
+        if (parts.length == 0) return;
+
+        switch (parts[0].toLowerCase()) {
+            case "join" -> {
+                if (parts.length < 2) {
+                    sendSystemMessage("Usage: /join <roomName>");
+                } else {
+                    handleJoin(parts[1]);
+                }
+            }
+            case "leave" -> handleLeave();
+            case "rooms" -> handleListRooms();
+            case "users" -> handleListUsers();
+            case "quit"  -> handleQuit();
+            default      -> sendSystemMessage("Unknown command: /" + parts[0]);
+        }
     }
 
     /**
@@ -69,44 +108,63 @@ public class ClientHandler implements Runnable {
      * If already in a room, leave it first.
      */
     private void handleJoin(String roomName) {
-        // TODO: If client is already in a room, call handleLeave() first
-        //       Get or create room via roomManager
-        //       Call room.join(client)
-        //       Send system message confirming join
+        if (client.getCurrentRoom() != null) {
+            handleLeave();
+        }
+        Room room = roomManager.getOrCreateRoom(roomName);
+        room.join(client);
+        sendSystemMessage("Joined #" + roomName);
     }
 
     /**
      * Leave the current room.
      */
     private void handleLeave() {
-        // TODO: Check if client is in a room
-        //       Call room.leave(client)
-        //       Send confirmation
+        Room room = client.getCurrentRoom();
+        if (room == null) {
+            sendSystemMessage("You're not in any room.");
+            return;
+        }
+        room.leave(client);
+        sendSystemMessage("Left #" + room.getName());
     }
 
     /**
      * List all active rooms and their member counts.
      */
     private void handleListRooms() {
-        // TODO: Get room info from roomManager.getRoomInfo()
-        //       Format and send to client
+        var roomInfo = roomManager.getRoomInfo();
+        if (roomInfo.isEmpty()) {
+            sendSystemMessage("No active rooms. Create one with /join <name>");
+            return;
+        }
+        StringBuilder sb = new StringBuilder("Active rooms:\n");
+        roomInfo.forEach((name, count) -> sb.append("  #").append(name).append(" (").append(count).append(" users)\n"));
+        sendSystemMessage(sb.toString().trim());
     }
 
     /**
      * List all users in the client's current room.
      */
     private void handleListUsers() {
-        // TODO: Check if in a room
-        //       Get members from room.getMembers()
-        //       Format usernames and send to client
+        Room room = client.getCurrentRoom();
+        if (room == null) {
+            sendSystemMessage("You're not in any room.");
+            return;
+        }
+        StringBuilder sb = new StringBuilder("Users in #" + room.getName() + ":\n");
+        for (ConnectedClient member : room.getMembers()) {
+            sb.append("  - ").append(member.getUsername()).append("\n");
+        }
+        sendSystemMessage(sb.toString().trim());
     }
 
     /**
      * Client requested disconnect.
      */
     private void handleQuit() {
-        // TODO: Send goodbye message
-        //       Trigger disconnect
+        sendSystemMessage("Goodbye!");
+        client.disconnect();
     }
 
     /**
@@ -114,25 +172,31 @@ public class ClientHandler implements Runnable {
      * THIS IS THE PRODUCER ACTION — enqueue blocks if queue is full (backpressure).
      */
     private void handleChatMessage(String content) {
-        // TODO: Check if client is in a room (send error if not)
-        //       Create Message(username, content, roomName, CHAT)
-        //       Call room.submitMessage(message)
-        //       ^^^ This calls queue.enqueue() which BLOCKS if full
+        Room room = client.getCurrentRoom();
+        if (room == null) {
+            sendSystemMessage("Join a room first with /join <name>");
+            return;
+        }
+        Message message = new Message(client.getUsername(), content, room.getName(), MessageType.CHAT);
+        room.submitMessage(message);
     }
 
     /**
      * Clean up on disconnect (graceful or abrupt).
      */
     private void handleDisconnect() {
-        // TODO: If in a room → leave it
-        //       Unregister from ClientRegistry
-        //       Disconnect the client socket
+        if (client.getCurrentRoom() != null) {
+            client.getCurrentRoom().leave(client);
+        }
+        clientRegistry.unregister(client.getClientId());
+        client.disconnect();
+        logger.info("Client '{}' disconnected", client.getUsername());
     }
 
     /**
      * Send a system message directly to this client (not through the queue).
      */
     private void sendSystemMessage(String text) {
-        // TODO: client.sendMessage(ChatProtocol.formatSystemMessage(text))
+        client.sendMessage(ChatProtocol.formatSystemMessage(text));
     }
 }

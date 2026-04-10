@@ -22,18 +22,21 @@ public class ClientRegistry {
      * Returns false if username is already taken.
      */
     public boolean register(ConnectedClient client) {
-        // TODO: putIfAbsent on clientsByUsername (returns null if success)
-        //       put on clientsById
-        //       return success/failure
-        return false;
+        ConnectedClient existing = clientsByUsername.putIfAbsent(client.getUsername(), client);
+        if (existing != null) return false;
+
+        clientsById.put(client.getClientId(), client);
+        return true;
     }
 
     /**
      * Unregister a client (on disconnect or quit).
      */
     public void unregister(String clientId) {
-        // TODO: Remove from clientsById
-        //       Remove from clientsByUsername (using the client's username)
+        ConnectedClient removed = clientsById.remove(clientId);
+        if (removed != null && removed.getUsername() != null) {
+            clientsByUsername.remove(removed.getUsername());
+        }
     }
 
     public ConnectedClient getByUsername(String username) {

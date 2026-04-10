@@ -46,21 +46,27 @@ public class MessageBroadcaster implements Runnable {
 
     @Override
     public void run() {
-        // TODO: while (running)
-        //       1. message = messageQueue.dequeue(callback)
-        //          → This BLOCKS when queue is empty (consumer waits)
-        //       2. If message is null (shutdown), break
-        //       3. Notify observer: onMessageBroadcast(message, room)
-        //       4. broadcastToMembers(message, room.getMembers())
-        //
-        // Catch InterruptedException → log, restore interrupt flag, exit
+        logger.info("Broadcaster started for #{}", room.getName());
+        try {
+            while (running) {
+                Message message = messageQueue.dequeue((msg, size) -> {});
+                if (message == null) break;
+
+                eventListener.onMessageBroadcast(message, room);
+                broadcastToMembers(message, room.getMembers());
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.info("Broadcaster interrupted for #{}", room.getName());
+        }
+        logger.info("Broadcaster stopped for #{}", room.getName());
     }
 
     /**
      * Stop the broadcaster. Called during room/server shutdown.
      */
     public void stop() {
-        // TODO: Set running = false
+        running = false;
     }
 
     /**
@@ -71,22 +77,37 @@ public class MessageBroadcaster implements Runnable {
      * BackpressureHandler.
      */
     private void broadcastToMembers(Message message, List<ConnectedClient> members) {
-        // TODO: String formatted = ChatProtocol.formatForDisplay(message)
-        //       for each member:
-        //         deliverToClient(member, formatted)
+        String formatted = ChatProtocol.formatForDisplay(message);
+        for (ConnectedClient member : members) {
+            deliverToClient(member, formatted, message);
+        }
     }
 
     /**
      * Deliver a formatted message to a single client.
      * Handles write failures via BackpressureHandler.
      */
-    private void deliverToClient(ConnectedClient client, String formatted) {
-        // TODO: try: client.sendMessage(formatted)
-        //       catch Exception:
-        //         action = backpressureHandler.handleSlowClient(client, message)
-        //         switch(action):
-        //           DROP_MESSAGE → skip (already logged by handler)
-        //           DISCONNECT_CLIENT → client.disconnect(), room.leave(client)
-        //           RETRY_ONCE → try once more, then drop
+    private void deliverToClient(ConnectedClient client, String formatted, Message message) {
+        if (!client.isConnected()) return;
+
+        try {
+            client.sendMessage(formatted);
+        } catch (Exception e) {
+            SlowClientAction action = backpressureHandler.handleSlowClient(client, message);
+            switch (action) {
+                case DISCONNECT_CLIENT -> {
+                    client.disconnect();
+                    room.leave(client);
+                }
+                case RETRY_ONCE -> {
+                    try {
+                        client.sendMessage(formatted);
+                    } catch (Exception retryEx) {
+                        backpressureHandler.handleSlowClient(client, message);
+                    }
+                }
+                case DROP_MESSAGE -> { /* already logged by handler */ }
+            }
+        }
     }
 }

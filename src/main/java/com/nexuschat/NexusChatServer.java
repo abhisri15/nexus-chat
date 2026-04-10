@@ -18,10 +18,13 @@ public class NexusChatServer {
     private static final Logger logger = LoggerFactory.getLogger(NexusChatServer.class);
 
     public static void main(String[] args) {
-        // TODO: 1. Create ServerConfig (use defaults or parse args)
-        // TODO: 2. Create RoomEventListener (ConsoleRoomLogger)
-        // TODO: 3. Create ChatServer with config and listener
-        // TODO: 4. Register shutdown hook → server.stop()
-        // TODO: 5. Call server.start() (blocking — runs accept loop)
+        ServerConfig config = new ServerConfig();
+        RoomEventListener eventListener = new ConsoleRoomLogger();
+        ChatServer server = new ChatServer(config, eventListener);
+
+        Runtime.getRuntime().addShutdownHook(new Thread(server::stop, "shutdown-hook"));
+
+        logger.info("Starting NexusChat...");
+        server.start();
     }
 }

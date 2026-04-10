@@ -37,10 +37,12 @@ public class RoomManager {
      * Thread-safe via ConcurrentHashMap.computeIfAbsent.
      */
     public Room getOrCreateRoom(String name) {
-        // TODO: Use computeIfAbsent to atomically create room if missing
-        //       If newly created: start broadcaster, notify observer
-        //       Return the room
-        return null;
+        return rooms.computeIfAbsent(name, roomName -> {
+            Room room = new Room(roomName, config.getRoomQueueCapacity(), eventListener);
+            room.startBroadcaster();
+            eventListener.onRoomCreated(room);
+            return room;
+        });
     }
 
     /**
@@ -54,9 +56,11 @@ public class RoomManager {
      * Remove and destroy a room (when empty).
      */
     public void removeRoom(String name) {
-        // TODO: Remove from map
-        //       Stop broadcaster
-        //       Notify observer: onRoomDestroyed
+        Room room = rooms.remove(name);
+        if (room != null) {
+            room.stopBroadcaster();
+            eventListener.onRoomDestroyed(room);
+        }
     }
 
     /**
@@ -78,6 +82,9 @@ public class RoomManager {
      * Shutdown all rooms. Called during server shutdown.
      */
     public void shutdownAllRooms() {
-        // TODO: Iterate all rooms, stop each broadcaster, clear the map
+        for (Room room : rooms.values()) {
+            room.stopBroadcaster();
+        }
+        rooms.clear();
     }
 }

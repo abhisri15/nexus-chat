@@ -44,10 +44,11 @@ public class ConnectedClient {
      * because broadcaster thread and system messages can call concurrently.
      */
     public void sendMessage(String rawMessage) {
-        // TODO: synchronized on writer
-        //       - Check if connected
-        //       - writer.println(rawMessage)
-        //       - writer.flush()
+        synchronized (writer) {
+            if (!connected) return;
+            writer.println(rawMessage);
+            writer.flush();
+        }
     }
 
     /**
@@ -55,16 +56,18 @@ public class ConnectedClient {
      * Called ONLY by the owning ClientHandler thread.
      */
     public String readLine() throws IOException {
-        // TODO: return reader.readLine() (returns null on disconnect)
-        return null;
+        return reader.readLine();
     }
 
     /**
      * Close the socket and mark as disconnected. Idempotent.
      */
     public void disconnect() {
-        // TODO: Set connected = false
-        //       Close socket (try-catch, ignore IOException)
+        connected = false;
+        try {
+            socket.close();
+        } catch (IOException ignored) {
+        }
     }
 
     // --- Getters / Setters ---

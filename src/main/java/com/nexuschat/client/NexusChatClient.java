@@ -38,42 +38,76 @@ public class NexusChatClient {
      * Connect to the server and start reading/writing.
      */
     public void connect(String host, int port) {
-        // TODO: 1. Open socket to host:port
-        //       2. Create serverReader (from socket input)
-        //       3. Create serverWriter (from socket output)
-        //       4. Create consoleReader (from System.in)
-        //       5. Set running = true
-        //       6. Start reader thread (reads from server, prints to console)
-        //       7. Start writer loop on main thread (reads console, sends to server)
-        //       8. On exit: disconnect()
+        try {
+            socket = new Socket(host, port);
+            serverReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            serverWriter = new PrintWriter(socket.getOutputStream(), true);
+            consoleReader = new BufferedReader(new InputStreamReader(System.in));
+            running = true;
+
+            System.out.println("Connected to NexusChat at " + host + ":" + port);
+            startReaderThread();
+            startWriterLoop();
+        } catch (IOException e) {
+            System.err.println("Failed to connect: " + e.getMessage());
+        } finally {
+            disconnect();
+        }
     }
 
     /**
      * Background thread: reads lines from server and prints to console.
      */
     private void startReaderThread() {
-        // TODO: New daemon thread that loops:
-        //       - line = serverReader.readLine()
-        //       - if null → server disconnected, set running=false, break
-        //       - System.out.println(line)
+        Thread readerThread = new Thread(() -> {
+            try {
+                String line;
+                while (running && (line = serverReader.readLine()) != null) {
+                    System.out.println(line);
+                }
+            } catch (IOException e) {
+                if (running) {
+                    System.err.println("Disconnected from server.");
+                }
+            }
+            running = false;
+        }, "reader-thread");
+        readerThread.setDaemon(true);
+        readerThread.start();
     }
 
     /**
      * Main thread loop: reads console input and sends to server.
      */
     private void startWriterLoop() {
-        // TODO: while (running)
-        //       - line = consoleReader.readLine()
-        //       - if "/quit" → break
-        //       - serverWriter.println(line)
-        //       - serverWriter.flush()
+        try {
+            while (running) {
+                String line = consoleReader.readLine();
+                if (line == null || line.equalsIgnoreCase("/quit")) {
+                    serverWriter.println("/quit");
+                    serverWriter.flush();
+                    break;
+                }
+                serverWriter.println(line);
+                serverWriter.flush();
+            }
+        } catch (IOException e) {
+            if (running) {
+                System.err.println("Error reading input: " + e.getMessage());
+            }
+        }
     }
 
     /**
      * Close all resources.
      */
     public void disconnect() {
-        // TODO: Set running = false
-        //       Close socket (closes reader/writer too)
+        running = false;
+        try {
+            if (socket != null && !socket.isClosed()) {
+                socket.close();
+            }
+        } catch (IOException ignored) {
+        }
     }
 }

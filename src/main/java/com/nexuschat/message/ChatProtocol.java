@@ -24,8 +24,8 @@ public class ChatProtocol {
      * Format: TYPE|sender|roomName|content
      */
     public static String encode(Message message) {
-        // TODO: Concatenate fields with PIPE delimiter
-        return null;
+        return message.getType() + PIPE + message.getSender() + PIPE
+                + message.getRoomName() + PIPE + message.getContent();
     }
 
     /**
@@ -33,11 +33,17 @@ public class ChatProtocol {
      * Returns null if the format is invalid.
      */
     public static Message decode(String raw) {
-        // TODO: Split by DELIMITER
-        //       Validate at least 4 parts
-        //       Parse MessageType from parts[0]
-        //       Create and return Message
-        return null;
+        if (raw == null || raw.isBlank()) return null;
+
+        String[] parts = raw.split(DELIMITER, 4);
+        if (parts.length < 4) return null;
+
+        try {
+            MessageType type = MessageType.valueOf(parts[0]);
+            return new Message(parts[1], parts[3], parts[2], type);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /**
@@ -49,8 +55,13 @@ public class ChatProtocol {
      * SYSTEM: [SERVER] Welcome to NexusChat
      */
     public static String formatForDisplay(Message message) {
-        // TODO: Switch on message type, format accordingly
-        return null;
+        return switch (message.getType()) {
+            case CHAT -> "[#" + message.getRoomName() + "] " + message.getSender() + ": " + message.getContent();
+            case JOIN -> "[#" + message.getRoomName() + "] >> " + message.getSender() + " joined the room";
+            case LEAVE -> "[#" + message.getRoomName() + "] << " + message.getSender() + " left the room";
+            case SYSTEM -> "[SERVER] " + message.getContent();
+            case BROADCAST -> "[BROADCAST] " + message.getContent();
+        };
     }
 
     /**
@@ -58,16 +69,14 @@ public class ChatProtocol {
      * Used for direct server-to-client communication.
      */
     public static String formatSystemMessage(String text) {
-        // TODO: Return something like "[SERVER] " + text
-        return null;
+        return "[SERVER] " + text;
     }
 
     /**
      * Check if a raw input line is a command (starts with "/").
      */
     public static boolean isCommand(String input) {
-        // TODO: Check prefix
-        return false;
+        return input != null && input.startsWith(COMMAND_PREFIX);
     }
 
     /**
@@ -75,7 +84,6 @@ public class ChatProtocol {
      * Example: "/join general" → ["join", "general"]
      */
     public static String[] parseCommand(String input) {
-        // TODO: Strip "/" prefix, split by whitespace
-        return null;
+        return input.substring(1).trim().split("\\s+");
     }
 }
