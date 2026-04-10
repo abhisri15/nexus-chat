@@ -25,38 +25,38 @@ both share the same rooms and can chat with each other in real time.
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────┐
+┌───────────────────────────────────────────────────────────┐
 │                    NexusChatServer                        │
 │                  (entry point / wiring)                   │
-├──────────┬───────────────────┬───────────────────────────┤
-│  HTTP    │   WebSocket       │     TCP                   │
-│  :8080   │   :9091           │     :9090                 │
-│  Static  │   WebSocketChat   │     ChatServer            │
-│  Server  │   Server          │     (accept loop)         │
-└──────────┴────────┬──────────┴────────┬──────────────────┘
+├──────────┬───────────────────┬────────────────────────────┤
+│  HTTP    │   WebSocket       │     TCP                    │
+│  :8080   │   :9091           │     :9090                  │
+│  Static  │   WebSocketChat   │     ChatServer             │
+│  Server  │   Server          │     (accept loop)          │
+└──────────┴────────┬──────────┴────────┬───────────────────┘
                     │   shared state    │
-              ┌─────▼──────────────────▼──────┐
+              ┌─────▼──────────────────▼───────┐
               │   ClientRegistry (usernames)   │
               │   RoomManager (room lifecycle) │
               └───────────────┬────────────────┘
                               │
-              ┌───────────────▼────────────────┐
+              ┌───────────────▼─────────────────┐
               │           Room                  │
-              │  ┌──────────────────────────┐  │
+              │  ┌───────────────────────────┐  │
               │  │ BoundedMessageQueue       │  │
               │  │ (wait/notifyAll monitor)  │  │
-              │  └────┬────────────────▲────┘  │
+              │  └────┬────────────────▲─────┘  │
               │       │ dequeue        │ enqueue│
-              │  ┌────▼─────┐  ┌──────┴─────┐ │
+              │  ┌────▼──────┐  ┌──────┴──────┐ │
               │  │Broadcaster│  │ClientHandler│ │
               │  │(CONSUMER) │  │ (PRODUCER)  │ │
-              │  └────┬──────┘  └────────────┘ │
+              │  └────┬──────┘  └─────────────┘ │
               │       │ fan-out to members      │
-              │  ┌────▼──────────────────────┐ │
-              │  │ CopyOnWriteArrayList      │ │
-              │  │ <ChatClient> members      │ │
-              │  └───────────────────────────┘ │
-              └────────────────────────────────┘
+              │  ┌────▼──────────────────────┐  │
+              │  │ CopyOnWriteArrayList      │  │
+              │  │ <ChatClient> members      │  │
+              │  └───────────────────────────┘  │
+              └─────────────────────────────────┘
 ```
 
 - **Producers** — `ClientHandler` (TCP) and `WebSocketChatServer` (browser) read user input and enqueue messages into the room's bounded queue.
